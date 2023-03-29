@@ -1,5 +1,7 @@
 #include "general.h"
 
+#include <Windows.h>
+
 #define PAGE_SIZE 65536
 
 #define round_up(n, power) {\
@@ -7,8 +9,8 @@
   n &= ~(power - 1);\
 }
 
-bool BumpInit(BumpAllocator *allocator) {
-	allocator->start = this->current = (u8 *)VirtualAlloc(NULL, reserve_size, MEM_RESERVE, PAGE_READWRITE);
+bool BumpInit(BumpAllocator *allocator, u64 reserve_size) {
+	allocator->start = allocator->current = (u8 *)VirtualAlloc(NULL, reserve_size, MEM_RESERVE, PAGE_READWRITE);
 
 	allocator->mem_committed = 0;
 	return (allocator->start == NULL);
@@ -27,8 +29,8 @@ void *BumpPushAligned(BumpAllocator *allocator, u64 size, u32 alignment) {
 	allocator->current += size;
 
 	// if we need more memory than is committed to physical memory
-	if (allocator->current - this->start > this->mem_committed) {
-		void *address = allocator->start + mem_committed;
+	if (allocator->current - allocator->start > allocator->mem_committed) {
+		void *address = allocator->start + allocator->mem_committed;
 
 		SIZE_T size = allocator->current - (u8 *)address;
 		round_up(size, (u64)PAGE_SIZE);
@@ -90,19 +92,19 @@ FileMapHandle MemoryMapOpen(char *file_name) {
 	if (handle.file_handle == INVALID_HANDLE_VALUE) return handle;
 
 	LARGE_INTEGER file_size = {0};
-	if (!GetFileSizeEx(file_handle, &file_size)) goto error;
+	if (!GetFileSizeEx(handle.file_handle, &file_size)) goto error;
 	handle.size = file_size.QuadPart;
 
-	handle.file_mapping_handle = CreateFileMapping(file_handle, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
+	handle.file_mapping_handle = CreateFileMapping(handle.file_handle, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
 	if (handle.file_mapping_handle == INVALID_HANDLE_VALUE) goto error;
 
-	handle.data = MapViewOfFile(file_mapping_handle, FILE_MAP_READ, 0, 0, 0);
+	handle.data = MapViewOfFile(handle.file_mapping_handle, FILE_MAP_READ, 0, 0, 0);
 	if (handle.data == NULL) goto error;
 
 	return handle;
 
 error:
-	MemoryMapClose(handle);
+	MemoryMapClose(&handle);
 	return handle;
 }
 
@@ -113,25 +115,9 @@ void MemoryMapClose(FileMapHandle *handle) {
 	*handle = (FileMapHandle){ 0, 0, 0, 0 };
 }
 
-void *ReadEntireFile(char *file_name, u32 *file_size) {
-	HANDLE file_handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (file_handle == INVALID_HANDLE_VALUE) return 0;
-	
-	*file_size = GetFileSize(file_handle, 0);
-	if (*file_size == 0) return 0;
-	
-	u8 *buffer = BumpAlloc(*file_size + 1);
-	
-	DWORD bytes_read = 0;
-	ReadFile(file_handle, buffer, *file_size, &bytes_read, NULL);
-	CloseHandle(file_handle);
-	if (bytes_read != *file_size) {
-		*file_size = 0;
-		BumpFree(buffer);
-		return 0;
-	};
-	
-	return buffer;
+void *ReadEntireFile(char *file_path, u32 *file_size) {
+
+	return 0;
 }
 
 bool FlushToFile(char *file_name, void *buffer, u32 size) {

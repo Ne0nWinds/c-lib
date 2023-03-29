@@ -29,7 +29,7 @@ typedef struct {
 	u64 mem_committed;
 } BumpAllocator;
 
-bool BumpInit(BumpAllocator *allocator);
+bool BumpInit(BumpAllocator *allocator, u64 reserve_size);
 void *BumpPush(BumpAllocator *allocator, u64 size);
 void *BumpPushAligned(BumpAllocator *allocator, u64 size, u32 alignment);
 void *BumpPushString(BumpAllocator *allocator, char *str, u32 length);
@@ -50,6 +50,6 @@ typedef struct {
 FileMapHandle MemoryMapOpen(char *file_name);
 void MemoryMapClose(FileMapHandle *handle);
 
-void *ReadEntireFile(char *file_name);
+void *ReadEntireFile(char *file_path, u32 *file_size);
 
 bool FlushToFile(char *file_name, void *buffer, u32 size);
