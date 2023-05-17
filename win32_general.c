@@ -56,6 +56,27 @@ void *BumpPushString(BumpAllocator *allocator, char *str, u32 length) {
 	return c;
 }
 
+// TODO: fix 4GB limitation
+void *BumpPushFile(BumpAllocator *allocator, char *file_path, u64 *size) {
+	HANDLE handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (handle == INVALID_HANDLE_VALUE) return 0;
+
+	void *buffer = 0;
+
+	LARGE_INTEGER win32_file_size = {0};
+	if (!GetFileSizeEx(handle, &win32_file_size)) goto end;
+	if (win32_file_size.QuadPart == 0) goto end;
+	*size = win32_file_size.QuadPart;
+
+	buffer = BumpPush(allocator, win32_file_size.QuadPart);
+	ReadFile(handle, buffer, win32_file_size.QuadPart, NULL, NULL);
+
+end:
+	*size = 0;
+	CloseHandle(handle);
+	return buffer;
+}
+
 void BumpPop(BumpAllocator *allocator, void *ptr) {
 	u64 length = allocator->current - (u8 *)ptr;
 	
@@ -113,11 +134,6 @@ void MemoryMapClose(FileMapHandle *handle) {
 	CloseHandle(handle->file_mapping_handle);
 	CloseHandle(handle->file_handle);
 	*handle = (FileMapHandle){ 0, 0, 0, 0 };
-}
-
-void *ReadEntireFile(char *file_path, u32 *file_size) {
-
-	return 0;
 }
 
 bool FlushToFile(char *file_name, void *buffer, u32 size) {

@@ -33,10 +33,15 @@ bool BumpInit(BumpAllocator *allocator, u64 reserve_size);
 void *BumpPush(BumpAllocator *allocator, u64 size);
 void *BumpPushAligned(BumpAllocator *allocator, u64 size, u32 alignment);
 void *BumpPushString(BumpAllocator *allocator, char *str, u32 length);
+void *BumpPushFile(BumpAllocator *allocator, char *file_path, u64 *size);
 void BumpPop(BumpAllocator *allocator, void *ptr);
 void BumpReset(BumpAllocator *allocator);
 void BumpFreeUnused(BumpAllocator *allocator);
 void BumpDestroy(BumpAllocator *allocator);
+
+#define KB(n) (1024LL * n)
+#define MB(n) (1024LL * KB(n))
+#define GB(n) (1024LL * MB(n))
 
 /* === File IO == */
 
@@ -49,7 +54,5 @@ typedef struct {
 
 FileMapHandle MemoryMapOpen(char *file_name);
 void MemoryMapClose(FileMapHandle *handle);
-
-void *ReadEntireFile(char *file_path, u32 *file_size);
 
 bool FlushToFile(char *file_name, void *buffer, u32 size);
