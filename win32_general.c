@@ -1,6 +1,44 @@
 #include "general.h"
 
-#include <Windows.h>
+// == stripped down Windows.h ==
+#define _AMD64_
+#include <windef.h>
+#include <fileapi.h>
+
+LPVOID VirtualAlloc(
+	LPVOID lpAddress,
+	SIZE_T dwSize,
+	DWORD  flAllocationType,
+	DWORD  flProtect
+);
+BOOL VirtualFree(
+	LPVOID lpAddress,
+	SIZE_T dwSize,
+	DWORD  dwFreeType
+);
+LPVOID MapViewOfFile(
+	HANDLE hFileMappingObject,
+	DWORD  dwDesiredAccess,
+	DWORD  dwFileOffsetHigh,
+	DWORD  dwFileOffsetLow,
+	SIZE_T dwNumberOfBytesToMap
+);
+BOOL UnmapViewOfFile(
+	LPCVOID lpBaseAddress
+);
+#define FILE_MAP_READ 0x4
+
+// other
+BOOL CloseHandle(HANDLE hObject);
+#define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
+HANDLE CreateFileMappingA(
+	HANDLE hFile,
+	LPSECURITY_ATTRIBUTES lpFileMappingAttributes,
+	DWORD flProtect,
+	DWORD dwMaximumSizeHigh,
+	DWORD dwMaximumSizeLow,
+	LPCSTR lpName
+);
 
 #define PAGE_SIZE 65536
 
@@ -45,34 +83,35 @@ void *BumpPushAligned(BumpAllocator *allocator, u64 size, u32 alignment) {
 }
 
 void *BumpPushString(BumpAllocator *allocator, char *str, u32 length) {
-	char *c = BumpPush(allocator, length + 1);
+	char *c = BumpPush(allocator, length);
 
 	for (u32 i = 0; i < length; ++i) {
 		c[i] = str[i];
 	}
-
-	c[length] = 0;
 
 	return c;
 }
 
 // TODO: fix 4GB limitation
 void *BumpPushFile(BumpAllocator *allocator, char *file_path, u64 *size) {
+	*size = 0;
 	HANDLE handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (handle == INVALID_HANDLE_VALUE) return 0;
-
-	void *buffer = 0;
 
 	LARGE_INTEGER win32_file_size = {0};
 	if (!GetFileSizeEx(handle, &win32_file_size)) goto end;
 	if (win32_file_size.QuadPart == 0) goto end;
+
+	void *buffer = BumpPush(allocator, win32_file_size.QuadPart);
+	if (!ReadFile(handle, buffer, win32_file_size.QuadPart, NULL, NULL)) {
+		BumpPop(allocator, buffer);
+		buffer = 0;
+		goto end;
+	}
+
 	*size = win32_file_size.QuadPart;
 
-	buffer = BumpPush(allocator, win32_file_size.QuadPart);
-	ReadFile(handle, buffer, win32_file_size.QuadPart, NULL, NULL);
-
 end:
-	*size = 0;
 	CloseHandle(handle);
 	return buffer;
 }
@@ -116,7 +155,7 @@ FileMapHandle MemoryMapOpen(char *file_name) {
 	if (!GetFileSizeEx(handle.file_handle, &file_size)) goto error;
 	handle.size = file_size.QuadPart;
 
-	handle.file_mapping_handle = CreateFileMapping(handle.file_handle, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
+	handle.file_mapping_handle = CreateFileMappingA(handle.file_handle, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
 	if (handle.file_mapping_handle == INVALID_HANDLE_VALUE) goto error;
 
 	handle.data = MapViewOfFile(handle.file_mapping_handle, FILE_MAP_READ, 0, 0, 0);
